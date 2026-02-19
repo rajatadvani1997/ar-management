@@ -32,7 +32,16 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(git remote add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(node:*)",
+      "Bash(npx tsx:*)",
+      "Bash(CSRF=\"892ab6f6f467c2a942e3bbdf4c2cdc04a15e77a06fad8938c5fc568c3e8ddec8\")",
+      "Bash(du:*)",
+      "Bash(powershell -NoProfile -Command \"& { $base = ''C:\\\\Users\\\\DELL\\\\OneDrive\\\\Desktop\\\\AR-Management''; Get-ChildItem $base | ForEach-Object { $s = \\(Get-ChildItem $_FullName -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum; Write-Output \\(''{0,10} MB  {1}'' -f [math]::Round\\($s/1MB,1\\), $_Name\\) } | Sort-Object -Descending }\")",
+      "Bash(powershell -NoProfile -File -:*)",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(cmd /c:*)"
     ]
   }
 }
