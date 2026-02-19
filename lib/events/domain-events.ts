@@ -58,7 +58,7 @@ type Handler<E extends DomainEvent> = (event: E) => void | Promise<void>;
 class DomainEventBus {
   private readonly handlers = new Map<string, Handler<any>[]>();
 
-  on<E extends DomainEvent>(type: E["type"], handler: Handler<E>): void {
+  on<K extends EventType>(type: K, handler: Handler<Extract<DomainEvent, { type: K }>>): void {
     const list = this.handlers.get(type) ?? [];
     list.push(handler);
     this.handlers.set(type, list);

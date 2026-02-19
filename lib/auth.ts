@@ -1,8 +1,28 @@
-import { NextAuthOptions, getServerSession } from "next-auth";
+import { NextAuthOptions, getServerSession, DefaultSession, DefaultUser } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import type { Role } from "@/app/generated/prisma/client";
+
+declare module "next-auth" {
+  interface Session {
+    user: NonNullable<DefaultSession["user"]> & {
+      id: string;
+      role: Role;
+    };
+  }
+  interface User extends DefaultUser {
+    role: Role;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: Role;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },

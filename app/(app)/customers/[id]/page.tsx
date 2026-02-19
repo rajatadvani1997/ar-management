@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Pencil, Phone, Mail, MapPin, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,9 +30,9 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { error, session } = await requireAuth();
-  if (error) return error;
-  const role = session!.user.role;
+  const { session } = await requireAuth();
+  if (!session?.user) redirect("/login");
+  const role = session!.user!.role;
 
   // Lightweight query — only fields needed for header/summary/contact.
   // Tab data is fetched lazily by each async RSC child.
