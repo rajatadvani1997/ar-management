@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(npx create-next-app@latest ar-temp --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --yes)",
+      "Bash(xcopy:*)",
+      "Bash(robocopy:*)",
+      "Bash(echo:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma init:*)",
+      "Bash(npx prisma:*)",
+      "WebSearch",
+      "Bash(npm run db:seed:*)",
+      "Bash(npx next build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(start http://localhost:3000)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)",
+      "Bash(start:*)",
+      "Bash(python:*)",
+      "Bash(CSRF=\"f2e8aac4df7a101d3014435c6d8f6d456a31926ac66a0d04b0dffd3464390bcc\")",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /PID 3084 /F\")",
+      "Bash(cmd /c taskkill /PID 3084 /F)",
+      "Bash(New-Item -Path \"C:\\\\Users\\\\DELL\\\\OneDrive\\\\Desktop\\\\AR-Management\\\\app\\\\\\(app\\)\\\\payments\\\\[id]\\\\delete-button.tsx\" -ItemType File -Force)",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"created\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

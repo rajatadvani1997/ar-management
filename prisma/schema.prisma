@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(COLLECTOR)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  callLogs CallLog[]
+
+  @@index([email])
+}
+
+model Customer {
+  id             String      @id @default(cuid())
+  customerCode   String      @unique
+  name           String
+  contactPerson  String?
+  phone          String
+  alternatePhone String?
+  email          String?
+  address        String?
+  creditLimit             Float       @default(0)
+  defaultPaymentTermDays  Int         @default(30)
+  creditUsed     Float       @default(0)
+  outstandingAmt Float       @default(0)
+  overdueAmt     Float       @default(0)
+  riskFlag       RiskFlag    @default(SAFE)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  invoices     Invoice[]
+  payments     Payment[]
+  callLogs     CallLog[]
+  promises     PromiseDate[]
+
+  @@index([riskFlag])
+  @@index([outstandingAmt])
+  @@index([isActive])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  customerId      String
+  invoiceDate     DateTime
+  dueDate         DateTime
+  paymentTermDays Int           @default(30)
+  subtotal        Float
+  taxAmount       Float         @default(0)
+  totalAmount     Float
+  paidAmount      Float         @default(0)
+  balanceAmount   Float
+  status          InvoiceStatus @default(UNPAID)
+  referenceNumber String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  lineItems   InvoiceLineItem[]
+  allocations PaymentAllocation[]
+
+  @@index([customerId, status])
+  @@index([dueDate, status])
+  @@index([status])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  lineTotal   Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  paymentNumber    String        @unique
+  customerId       String
+  paymentDate      DateTime
+  amount           Float
+  allocatedAmount  Float         @default(0)
+  unallocatedAmount Float        @default(0)
+  paymentMode      PaymentMode   @default(NEFT)
+  referenceNumber  String?
+  bankName         String?
+  notes            String?
+  status           PaymentStatus @default(UNALLOCATED)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  allocations PaymentAllocation[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model PaymentAllocation {
+  id        String   @id @default(cuid())
+  paymentId String
+  invoiceId String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+}
+
+model CallLog {
+  id          String     @id @default(cuid())
+  customerId  String
+  calledById  String
+  callDate    DateTime   @default(now())
+  callStatus  CallStatus
+  notes       String?
+  nextCallDate DateTime?
+  promiseMade  Boolean    @default(false)
+  promiseDateId String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  calledBy    User         @relation(fields: [calledById], references: [id])
+  promise     PromiseDate? @relation(fields: [promiseDateId], references: [id])
+
+  @@index([customerId])
+  @@index([callDate])
+}
+
+model PromiseDate {
+  id             String        @id @default(cuid())
+  customerId     String
+  promisedAmount Float?
+  promisedDate   DateTime
+  status         PromiseStatus @default(PENDING)
+  resolvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  customer Customer  @relation(fields: [customerId], references: [id])
+  callLogs CallLog[]
+
+  @@index([promisedDate, status])
+  @@index([customerId])
+}
+
+model SystemSettings {
+  id                      String   @id @default("GLOBAL")
+  defaultPaymentTerms     Int      @default(30)
+  overdueGraceDays        Int      @default(0)
+  watchlistThresholdPct   Float    @default(80)
+  highRiskOverdueDays     Int      @default(60)
+  brokenPromisesThreshold Int      @default(2)
+  currency                String   @default("INR")
+  currencySymbol          String   @default("₹")
+  companyName             String   @default("My Company")
+  updatedAt               DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  COLLECTOR
+  VIEWER
+}
+
+enum RiskFlag {
+  SAFE
+  WATCHLIST
+  HIGH_RISK
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+  WRITTEN_OFF
+}
+
+enum PaymentMode {
+  CASH
+  CHEQUE
+  NEFT
+  RTGS
+  IMPS
+  UPI
+  OTHER
+}
+
+enum PaymentStatus {
+  UNALLOCATED
+  PARTIAL
+  APPLIED
+}
+
+enum CallStatus {
+  CONNECTED
+  NOT_REACHABLE
+  CALL_BACK_LATER
+  LEFT_MESSAGE
+  WRONG_NUMBER
+}
+
+enum PromiseStatus {
+  PENDING
+  KEPT
+  BROKEN
+}

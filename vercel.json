@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/promises/check-broken", "schedule": "0 1 * * *" },
+    { "path": "/api/invoices/refresh-status", "schedule": "0 1 * * *" }
+  ]
+}
