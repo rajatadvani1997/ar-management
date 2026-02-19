@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,17 +41,23 @@ export function AllocationTable({ payment, invoices, existingAllocations }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const initialAllocations: Record<string, number> = {};
-  existingAllocations.forEach((a) => {
-    initialAllocations[a.invoiceId] = a.amount;
-  });
+  // Memoised initial state — prevents rebuild on every render
+  const initialAllocations = useMemo(() => {
+    const map: Record<string, number> = {};
+    existingAllocations.forEach((a) => { map[a.invoiceId] = a.amount; });
+    return map;
+  }, [existingAllocations]);
 
   const [allocations, setAllocations] = useState<Record<string, number>>(initialAllocations);
 
-  const totalAllocated = Object.values(allocations).reduce((s, v) => s + (v || 0), 0);
-  const remaining = payment.amount - totalAllocated;
+  // Memoised derived values
+  const totalAllocated = useMemo(
+    () => Object.values(allocations).reduce((s, v) => s + (v || 0), 0),
+    [allocations]
+  );
+  const remaining = useMemo(() => payment.amount - totalAllocated, [payment.amount, totalAllocated]);
 
-  async function handleSave() {
+  const handleSave = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -79,7 +85,7 @@ export function AllocationTable({ payment, invoices, existingAllocations }: Prop
       setError(data.error || "Allocation failed");
       setLoading(false);
     }
-  }
+  }, [payment.id, allocations, router]);
 
   return (
     <div className="space-y-4">

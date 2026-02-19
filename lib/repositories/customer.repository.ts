@@ -9,33 +9,48 @@
 
 import { PrismaClient, RiskFlag } from "@/app/generated/prisma/client";
 import prisma from "@/lib/prisma";
+import type { PaginatedResult } from "@/lib/repositories/types";
+export type { PaginatedResult };
 
 export interface CustomerFilters {
   search?: string;
   riskFlag?: RiskFlag;
   isActive?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 function createCustomerRepository(db: PrismaClient) {
   return {
-    async findMany(filters: CustomerFilters = {}) {
-      const { search, riskFlag, isActive } = filters;
+    async findMany(filters: CustomerFilters = {}): Promise<PaginatedResult<any>> {
+      const { search, riskFlag, isActive, page = 1, pageSize = 20 } = filters;
+      const skip = (page - 1) * pageSize;
 
-      return db.customer.findMany({
-        where: {
-          ...(search && {
-            OR: [
-              { name: { contains: search } },
-              { customerCode: { contains: search } },
-              { contactPerson: { contains: search } },
-              { phone: { contains: search } },
-            ],
-          }),
-          ...(riskFlag && { riskFlag }),
-          ...(isActive !== undefined && { isActive }),
-        },
-        orderBy: [{ overdueAmt: "desc" }, { outstandingAmt: "desc" }],
-      });
+      const where = {
+        ...(search && {
+          OR: [
+            { name: { contains: search } },
+            { customerCode: { contains: search } },
+            { contactPerson: { contains: search } },
+            { phone: { contains: search } },
+          ],
+        }),
+        ...(riskFlag && { riskFlag }),
+        ...(isActive !== undefined && { isActive }),
+      };
+
+      // Single round-trip: count + data in parallel (mirrors invoice repository pattern)
+      const [total, data] = await Promise.all([
+        db.customer.count({ where }),
+        db.customer.findMany({
+          where,
+          orderBy: [{ overdueAmt: "desc" }, { outstandingAmt: "desc" }],
+          skip,
+          take: pageSize,
+        }),
+      ]);
+
+      return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
     },
 
     async findById(id: string) {

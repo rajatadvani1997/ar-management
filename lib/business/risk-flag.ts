@@ -18,17 +18,15 @@ export async function updateRiskFlag(customerId: string): Promise<RiskFlag> {
   const today = new Date();
   const ninetyDaysAgo = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-  // Max overdue days
-  const overdueInvoices = await prisma.invoice.findMany({
+  // Max overdue days — the oldest (min) due date gives the maximum days overdue
+  const oldestOverdue = await prisma.invoice.aggregate({
+    _min: { dueDate: true },
     where: { customerId, status: "OVERDUE" },
-    select: { dueDate: true },
   });
-  const maxOverdueDays = overdueInvoices.reduce((max, inv) => {
-    const days = Math.floor(
-      (today.getTime() - inv.dueDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return Math.max(max, days);
-  }, 0);
+  const minDueDate = oldestOverdue._min.dueDate;
+  const maxOverdueDays = minDueDate
+    ? Math.floor((today.getTime() - minDueDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   // Broken promises in last 90 days
   const brokenPromises = await prisma.promiseDate.count({

@@ -38,13 +38,20 @@ export async function refreshInvoiceStatus(invoiceId: string) {
   return newStatus;
 }
 
-/** Refresh all non-terminal invoices — used by cron */
+/** Refresh all non-terminal invoices — used by cron.
+ *
+ * Batches updates by grouping invoices by their new status, then issues
+ * one `updateMany` per distinct new status (max 3 calls instead of N).
+ * SRP: computeInvoiceStatus() is unchanged — only the persistence loop changed.
+ */
 export async function refreshAllInvoiceStatuses() {
   const invoices = await prisma.invoice.findMany({
     where: { status: { notIn: ["PAID", "WRITTEN_OFF"] } },
+    select: { id: true, totalAmount: true, paidAmount: true, dueDate: true, status: true },
   });
 
-  let updated = 0;
+  // Group IDs by their new target status
+  const statusGroups = new Map<InvoiceStatus, string[]>();
   for (const inv of invoices) {
     const newStatus = computeInvoiceStatus(
       inv.totalAmount,
@@ -53,9 +60,20 @@ export async function refreshAllInvoiceStatuses() {
       inv.status
     );
     if (newStatus !== inv.status) {
-      await prisma.invoice.update({ where: { id: inv.id }, data: { status: newStatus } });
-      updated++;
+      const ids = statusGroups.get(newStatus) ?? [];
+      ids.push(inv.id);
+      statusGroups.set(newStatus, ids);
     }
   }
-  return updated;
+
+  if (statusGroups.size === 0) return 0;
+
+  // One updateMany per distinct new status (max 3 DB calls instead of N)
+  await Promise.all(
+    Array.from(statusGroups.entries()).map(([status, ids]) =>
+      prisma.invoice.updateMany({ where: { id: { in: ids } }, data: { status } })
+    )
+  );
+
+  return Array.from(statusGroups.values()).reduce((sum, ids) => sum + ids.length, 0);
 }

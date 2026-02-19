@@ -10,6 +10,8 @@
 
 import { PrismaClient, InvoiceStatus } from "@/app/generated/prisma/client";
 import prisma from "@/lib/prisma";
+import type { PaginatedResult } from "@/lib/repositories/types";
+export type { PaginatedResult };
 
 export interface InvoiceFilters {
   customerId?: string;
@@ -17,14 +19,6 @@ export interface InvoiceFilters {
   search?: string;
   page?: number;
   pageSize?: number;
-}
-
-export interface PaginatedResult<T> {
-  data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
 }
 
 export type InvoiceWithRelations = Awaited<

@@ -10,6 +10,7 @@ import { requireAuth } from "@/lib/auth";
 import { invoiceCreateSchema } from "@/lib/validators";
 import { invoiceService } from "@/lib/services/invoice.service";
 import { InvoiceStatus } from "@/app/generated/prisma/client";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(req: NextRequest) {
   const { error } = await requireAuth();
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { error, session } = await requireAuth();
   if (error) return error;
-  if ((session!.user as any).role === "VIEWER")
+  if (session!.user.role === "VIEWER")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
@@ -44,8 +45,7 @@ export async function POST(req: NextRequest) {
   try {
     const invoice = await invoiceService.create(parsed.data);
     return NextResponse.json({ invoice }, { status: 201 });
-  } catch (err: any) {
-    console.error("[POST /api/invoices]", err);
-    return NextResponse.json({ error: err.message ?? "Unexpected error" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(err);
   }
 }

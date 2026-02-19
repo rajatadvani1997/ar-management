@@ -34,15 +34,15 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as any).role;
+        token.role = user.role;
         token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
+        session.user.role = token.role;
+        session.user.id = token.id;
       }
       return session;
     },
@@ -65,7 +65,7 @@ export async function requireAuth() {
 export async function requireRole(roles: string[]) {
   const { error, session } = await requireAuth();
   if (error) return { error, session: null };
-  const userRole = (session!.user as any).role;
+  const userRole = session!.user.role;
   if (!roles.includes(userRole)) {
     return {
       error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),

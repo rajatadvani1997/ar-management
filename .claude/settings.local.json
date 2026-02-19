@@ -41,7 +41,10 @@
       "Bash(powershell -NoProfile -Command \"& { $base = ''C:\\\\Users\\\\DELL\\\\OneDrive\\\\Desktop\\\\AR-Management''; Get-ChildItem $base | ForEach-Object { $s = \\(Get-ChildItem $_FullName -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum; Write-Output \\(''{0,10} MB  {1}'' -f [math]::Round\\($s/1MB,1\\), $_Name\\) } | Sort-Object -Descending }\")",
       "Bash(powershell -NoProfile -File -:*)",
       "Bash(powershell -NoProfile -Command:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(head:*)",
+      "Bash(cat:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

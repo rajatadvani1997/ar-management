@@ -1,25 +1,23 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import prisma from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { formatCurrency, formatDate, PAYMENT_MODE_LABELS } from "@/lib/utils";
 import { Plus } from "lucide-react";
+import type { PaymentStatus } from "@/app/generated/prisma/client";
+
+const PAGE_SIZE = 20;
 
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
-  const { status = "", search = "" } = await searchParams;
+  const { status = "", page = "1" } = await searchParams;
+  const currentPage = Math.max(1, Number(page));
 
-  const payments = await prisma.payment.findMany({
-    where: {
-      ...(status && { status: status as any }),
-    },
-    include: { customer: { select: { name: true, customerCode: true } } },
-    orderBy: { paymentDate: "desc" },
-    take: 100,
-  });
-
+  // Unallocated total is a fast aggregation — render in page shell alongside header
   const totalUnallocated = await prisma.payment.aggregate({
     _sum: { unallocatedAmount: true },
     where: { unallocatedAmount: { gt: 0 } },
@@ -31,7 +29,6 @@ export default async function PaymentsPage({
         <div>
           <h1 className="text-2xl font-bold">Payments</h1>
           <p className="text-gray-500">
-            {payments.length} payments ·{" "}
             <span className="text-orange-600 font-medium">
               {formatCurrency(totalUnallocated._sum.unallocatedAmount || 0)} unallocated
             </span>
@@ -42,6 +39,7 @@ export default async function PaymentsPage({
         </Link>
       </div>
 
+      {/* Filters render instantly */}
       <form className="flex flex-wrap gap-3">
         <select name="status" defaultValue={status} className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">All Statuses</option>
@@ -53,6 +51,43 @@ export default async function PaymentsPage({
         <Link href="/payments"><Button variant="ghost" size="sm">Clear</Button></Link>
       </form>
 
+      {/* Table streams in via Suspense — CLS prevented by fixed skeleton height */}
+      <Suspense fallback={<TableSkeleton rows={PAGE_SIZE} cols={8} />}>
+        <PaymentsTable status={status} page={currentPage} pageSize={PAGE_SIZE} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function PaymentsTable({
+  status,
+  page,
+  pageSize,
+}: {
+  status: string;
+  page: number;
+  pageSize: number;
+}) {
+  const skip = (page - 1) * pageSize;
+  const where = { ...(status && { status: status as PaymentStatus }) };
+
+  const [total, payments] = await Promise.all([
+    prisma.payment.count({ where }),
+    prisma.payment.findMany({
+      where,
+      include: { customer: { select: { name: true, customerCode: true } } },
+      orderBy: { paymentDate: "desc" },
+      skip,
+      take: pageSize,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(total / pageSize);
+  const searchQs = new URLSearchParams({ ...(status && { status }) });
+
+  return (
+    <>
+      <p className="text-sm text-gray-500">{total} payment{total !== 1 ? "s" : ""}</p>
       <div className="rounded-lg border bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -93,15 +128,31 @@ export default async function PaymentsPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link href={`/payments/${p.id}`}>
-                    <Button variant="ghost" size="sm">View</Button>
-                  </Link>
+                  <Link href={`/payments/${p.id}`}><Button variant="ghost" size="sm">View</Button></Link>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>Page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            {page > 1 ? (
+              <Link href={`/payments?${searchQs}&page=${page - 1}`}><Button variant="outline" size="sm">← Prev</Button></Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled>← Prev</Button>
+            )}
+            {page < totalPages ? (
+              <Link href={`/payments?${searchQs}&page=${page + 1}`}><Button variant="outline" size="sm">Next →</Button></Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled>Next →</Button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

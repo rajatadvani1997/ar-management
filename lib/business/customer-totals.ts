@@ -1,18 +1,22 @@
 import prisma from "@/lib/prisma";
 
 export async function recalculateCustomerTotals(customerId: string) {
-  const invoices = await prisma.invoice.findMany({
-    where: { customerId },
-    select: { status: true, balanceAmount: true },
-  });
+  const [outstandingResult, overdueResult] = await Promise.all([
+    prisma.invoice.aggregate({
+      _sum: { balanceAmount: true },
+      where: {
+        customerId,
+        status: { notIn: ["PAID", "WRITTEN_OFF"] },
+      },
+    }),
+    prisma.invoice.aggregate({
+      _sum: { balanceAmount: true },
+      where: { customerId, status: "OVERDUE" },
+    }),
+  ]);
 
-  const outstandingAmt = invoices
-    .filter((i) => !["PAID", "WRITTEN_OFF"].includes(i.status))
-    .reduce((sum, i) => sum + i.balanceAmount, 0);
-
-  const overdueAmt = invoices
-    .filter((i) => i.status === "OVERDUE")
-    .reduce((sum, i) => sum + i.balanceAmount, 0);
+  const outstandingAmt = outstandingResult._sum.balanceAmount ?? 0;
+  const overdueAmt = overdueResult._sum.balanceAmount ?? 0;
 
   await prisma.customer.update({
     where: { id: customerId },

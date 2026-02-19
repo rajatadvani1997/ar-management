@@ -1,44 +1,34 @@
 import Link from "next/link";
-import prisma from "@/lib/prisma";
+import { Suspense } from "react";
+import { customerRepository } from "@/lib/repositories/customer.repository";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { formatCurrency, RISK_FLAG_CONFIG } from "@/lib/utils";
-import { Plus, Phone, Mail } from "lucide-react";
+import { Plus, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import type { RiskFlag } from "@/app/generated/prisma/client";
+
+const PAGE_SIZE = 20;
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; riskFlag?: string }>;
+  searchParams: Promise<{ search?: string; riskFlag?: string; page?: string }>;
 }) {
-  const { search = "", riskFlag = "" } = await searchParams;
-
-  const customers = await prisma.customer.findMany({
-    where: {
-      isActive: true,
-      ...(search && {
-        OR: [
-          { name: { contains: search } },
-          { customerCode: { contains: search } },
-          { phone: { contains: search } },
-        ],
-      }),
-      ...(riskFlag && { riskFlag: riskFlag as any }),
-    },
-    orderBy: [{ overdueAmt: "desc" }, { outstandingAmt: "desc" }],
-  });
+  const { search = "", riskFlag = "", page = "1" } = await searchParams;
+  const currentPage = Math.max(1, Number(page));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
-          <p className="text-gray-500">{customers.length} customers</p>
         </div>
         <Link href="/customers/new">
           <Button><Plus className="mr-2 h-4 w-4" />Add Customer</Button>
         </Link>
       </div>
 
-      {/* Filters */}
+      {/* Filters — render instantly (no data dependency) */}
       <form className="flex flex-wrap gap-3">
         <input
           name="search"
@@ -56,7 +46,44 @@ export default async function CustomersPage({
         <Link href="/customers"><Button variant="ghost" size="sm">Clear</Button></Link>
       </form>
 
-      {/* Table */}
+      {/* Table streams in — skeleton shown during DB query (CLS prevention via fixed height) */}
+      <Suspense fallback={<TableSkeleton rows={PAGE_SIZE} cols={6} />}>
+        <CustomerTable
+          search={search}
+          riskFlag={riskFlag}
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+async function CustomerTable({
+  search,
+  riskFlag,
+  page,
+  pageSize,
+}: {
+  search: string;
+  riskFlag: string;
+  page: number;
+  pageSize: number;
+}) {
+  const result = await customerRepository.findMany({
+    search: search || undefined,
+    riskFlag: (riskFlag as RiskFlag) || undefined,
+    isActive: true,
+    page,
+    pageSize,
+  });
+
+  const { data: customers, total, totalPages } = result;
+  const searchQs = new URLSearchParams({ ...(search && { search }), ...(riskFlag && { riskFlag }) });
+
+  return (
+    <>
+      <p className="text-sm text-gray-500">{total} customer{total !== 1 ? "s" : ""}</p>
       <div className="rounded-lg border bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -79,11 +106,11 @@ export default async function CustomersPage({
               </tr>
             ) : (
               customers.map((c) => {
-                const riskConfig = RISK_FLAG_CONFIG[c.riskFlag];
+                const riskConfig = RISK_FLAG_CONFIG[c.riskFlag as RiskFlag];
                 return (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="font-medium"> <Link href={`/customers/${c.id}`}>{c.name} </Link></div>
+                      <div className="font-medium"><Link href={`/customers/${c.id}`}>{c.name}</Link></div>
                       <div className="text-gray-400 text-xs">{c.customerCode}</div>
                     </td>
                     <td className="px-4 py-3">
@@ -120,6 +147,29 @@ export default async function CustomersPage({
           </tbody>
         </table>
       </div>
-    </div>
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>Page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            {page > 1 ? (
+              <Link href={`/customers?${searchQs}&page=${page - 1}`}>
+                <Button variant="outline" size="sm"><ChevronLeft className="h-4 w-4" />Prev</Button>
+              </Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled><ChevronLeft className="h-4 w-4" />Prev</Button>
+            )}
+            {page < totalPages ? (
+              <Link href={`/customers?${searchQs}&page=${page + 1}`}>
+                <Button variant="outline" size="sm">Next<ChevronRight className="h-4 w-4" /></Button>
+              </Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled>Next<ChevronRight className="h-4 w-4" /></Button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

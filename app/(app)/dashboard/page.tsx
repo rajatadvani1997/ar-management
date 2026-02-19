@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { DashboardCharts } from "./dashboard-charts";
+import { StatCardSkeleton } from "@/components/shared/table-skeleton";
+import { DashboardChartsLoader as DashboardCharts } from "./dashboard-charts-loader";
 import { AlertTriangle, TrendingUp, Users, FileText, CreditCard, Clock } from "lucide-react";
 
 async function getDashboardData() {

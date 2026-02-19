@@ -2,7 +2,19 @@ import prisma from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { calculateAging } from "@/lib/business/aging";
-import { AgingCharts } from "./aging-charts";
+import dynamic from "next/dynamic";
+
+// Recharts lazy-loaded — keeps aging tables and summary cards in the initial bundle
+// while deferring the heavy chart library until after first paint (LCP improvement).
+const AgingCharts = dynamic(
+  () => import("./aging-charts").then((m) => ({ default: m.AgingCharts })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[220px] animate-pulse rounded-lg bg-muted" aria-label="Loading charts" />
+    ),
+  }
+);
 import { RISK_FLAG_CONFIG } from "@/lib/utils";
 
 export default async function ReportsPage() {

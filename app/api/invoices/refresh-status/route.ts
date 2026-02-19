@@ -20,10 +20,13 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
 
-  for (const c of customers) {
-    await recalculateCustomerTotals(c.id);
-    await updateRiskFlag(c.id);
-  }
+  // Parallelise across customers (totals must still precede risk within each customer)
+  await Promise.all(
+    customers.map(async (c) => {
+      await recalculateCustomerTotals(c.id);
+      await updateRiskFlag(c.id);
+    })
+  );
 
   return NextResponse.json({ updated, customersRefreshed: customers.length });
 }

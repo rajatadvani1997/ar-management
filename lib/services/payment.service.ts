@@ -61,7 +61,7 @@ const paymentService = {
    *   this method is identical for both — it only calls strategy.allocate().
    */
   async allocate(paymentId: string, strategy: AllocationStrategy) {
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // 1. Load payment (with existing allocations)
       const payment = await tx.payment.findUniqueOrThrow({
         where: { id: paymentId },
@@ -95,7 +95,7 @@ const paymentService = {
 
       const plan = strategy.allocate(remainingAmount, unpaidInvoices);
 
-      if (plan.length === 0) return { paymentId, totalAllocated: 0, unallocated: payment.amount };
+      if (plan.length === 0) return { paymentId, customerId: payment.customerId, totalAllocated: 0, unallocated: payment.amount, strategy: strategy.name };
 
       // 4. Apply the plan atomically
       for (const item of plan) {
@@ -141,8 +141,19 @@ const paymentService = {
         data: { allocatedAmount: totalAllocated, unallocatedAmount: unallocated, status: paymentStatus },
       });
 
-      return { paymentId, totalAllocated, unallocated, strategy: strategy.name };
+      return { paymentId, customerId: payment.customerId, totalAllocated, unallocated, strategy: strategy.name };
     });
+
+    // Emit domain event so handlers recalculate customer totals + risk flag.
+    // Uses emitSafe — allocation has already committed; handler failures must not roll it back.
+    eventBus.emitSafe({
+      type: "PAYMENT_ALLOCATED",
+      customerId: result.customerId,
+      paymentId: result.paymentId,
+      totalAllocated: result.totalAllocated,
+    });
+
+    return result;
   },
 
   async update(id: string, data: Partial<CreatePaymentInput>) {

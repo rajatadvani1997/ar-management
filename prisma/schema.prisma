@@ -145,6 +145,7 @@ model CallLog {
 
   @@index([customerId])
   @@index([callDate])
+  @@index([customerId, callDate])
 }
 
 model PromiseDate {
@@ -163,6 +164,7 @@ model PromiseDate {
 
   @@index([promisedDate, status])
   @@index([customerId])
+  @@index([customerId, status])
 }
 
 model SystemSettings {

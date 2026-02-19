@@ -15,6 +15,7 @@ import { paymentAllocationSchema } from "@/lib/validators";
 import { paymentService } from "@/lib/services/payment.service";
 import { fifoStrategy } from "@/lib/strategies/allocation/fifo.strategy";
 import { ManualAllocationStrategy } from "@/lib/strategies/allocation/manual.strategy";
+import { handleApiError } from "@/lib/api-response";
 
 export async function POST(
   req: NextRequest,
@@ -22,7 +23,7 @@ export async function POST(
 ) {
   const { error, session } = await requireAuth();
   if (error) return error;
-  if ((session!.user as any).role === "VIEWER")
+  if (session!.user.role === "VIEWER")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
@@ -49,7 +50,7 @@ export async function POST(
     }
 
     return NextResponse.json({ result });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (err) {
+    return handleApiError(err);
   }
 }

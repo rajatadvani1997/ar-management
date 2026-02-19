@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,59 @@ interface Invoice {
   id: string; invoiceNumber: string; invoiceDate: string; dueDate: string;
   totalAmount: number; balanceAmount: number; status: string;
 }
+
+/** Memoised row — prevents all rows re-rendering when one allocation value changes. */
+const AllocationRow = memo(function AllocationRow({
+  invoice,
+  value,
+  maxAlloc,
+  remaining,
+  onChange,
+}: {
+  invoice: Invoice;
+  value: number;
+  maxAlloc: number;
+  remaining: number;
+  onChange: (invoiceId: string, amount: number) => void;
+}) {
+  const sc = INVOICE_STATUS_CONFIG[invoice.status as keyof typeof INVOICE_STATUS_CONFIG];
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange(invoice.id, Math.min(Number(e.target.value), maxAlloc));
+    },
+    [invoice.id, maxAlloc, onChange]
+  );
+  const handleMax = useCallback(() => {
+    const canAllocate = Math.min(invoice.balanceAmount, remaining + value);
+    onChange(invoice.id, Math.max(0, canAllocate));
+  }, [invoice.id, invoice.balanceAmount, remaining, value, onChange]);
+
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-medium text-sm">{invoice.invoiceNumber}</span>
+          <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${sc.className}`}>{sc.label}</span>
+        </div>
+        <span className="text-sm font-medium">{formatCurrency(invoice.balanceAmount)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label className="text-xs whitespace-nowrap">Allocate (₹):</Label>
+        <Input
+          type="number"
+          min="0"
+          max={maxAlloc}
+          step="0.01"
+          value={value || ""}
+          onChange={handleChange}
+          placeholder="0"
+          className="h-8 text-sm"
+        />
+        <Button type="button" variant="ghost" size="sm" onClick={handleMax}>Max</Button>
+      </div>
+    </div>
+  );
+});
 
 export function PaymentWithAllocationForm({
   customers,
@@ -41,8 +94,12 @@ export function PaymentWithAllocationForm({
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [allocations, setAllocations] = useState<Record<string, number>>({});
 
-  const totalAllocated = Object.values(allocations).reduce((s, v) => s + v, 0);
-  const remaining = amount - totalAllocated;
+  // Memoised derived values — prevent recalculation on every unrelated state change
+  const totalAllocated = useMemo(
+    () => Object.values(allocations).reduce((s, v) => s + v, 0),
+    [allocations]
+  );
+  const remaining = useMemo(() => amount - totalAllocated, [amount, totalAllocated]);
 
   useEffect(() => {
     if (customerId) {
@@ -58,7 +115,7 @@ export function PaymentWithAllocationForm({
     }
   }, [customerId]);
 
-  async function handleCreatePayment() {
+  const handleCreatePayment = useCallback(async () => {
     if (!customerId) { setError("Select a customer"); return; }
     if (!amount || amount <= 0) { setError("Enter a valid amount"); return; }
     setLoading(true);
@@ -80,9 +137,9 @@ export function PaymentWithAllocationForm({
       setError(data.error || "Failed to create payment");
     }
     setLoading(false);
-  }
+  }, [customerId, amount, paymentDate, paymentMode, referenceNumber, bankName, notes]);
 
-  async function handleAllocate() {
+  const handleAllocate = useCallback(async () => {
     if (!createdPaymentId) return;
     const allocs = Object.entries(allocations)
       .filter(([_, amt]) => amt > 0)
@@ -110,7 +167,7 @@ export function PaymentWithAllocationForm({
       setError(data.error || "Failed to allocate");
       setLoading(false);
     }
-  }
+  }, [createdPaymentId, allocations, amount, router]);
 
   return (
     <div className="space-y-6">
@@ -210,48 +267,18 @@ export function PaymentWithAllocationForm({
                 <p className="text-gray-400 text-sm">No open invoices for this customer.</p>
               ) : (
                 <div className="space-y-3">
-                  {invoices.map((inv) => {
-                    const sc = INVOICE_STATUS_CONFIG[inv.status as keyof typeof INVOICE_STATUS_CONFIG];
-                    const max = Math.min(inv.balanceAmount, amount);
-                    return (
-                      <div key={inv.id} className="rounded-lg border p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-medium text-sm">{inv.invoiceNumber}</span>
-                            <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${sc.className}`}>{sc.label}</span>
-                          </div>
-                          <span className="text-sm font-medium">{formatCurrency(inv.balanceAmount)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs whitespace-nowrap">Allocate (₹):</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max={max}
-                            step="0.01"
-                            value={allocations[inv.id] ?? ""}
-                            onChange={(e) => {
-                              const val = Math.min(Number(e.target.value), max);
-                              setAllocations((prev) => ({ ...prev, [inv.id]: val }));
-                            }}
-                            placeholder="0"
-                            className="h-8 text-sm"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const canAllocate = Math.min(inv.balanceAmount, remaining + (allocations[inv.id] || 0));
-                              setAllocations((prev) => ({ ...prev, [inv.id]: Math.max(0, canAllocate) }));
-                            }}
-                          >
-                            Max
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {invoices.map((inv) => (
+                    <AllocationRow
+                      key={inv.id}
+                      invoice={inv}
+                      value={allocations[inv.id] ?? 0}
+                      maxAlloc={Math.min(inv.balanceAmount, amount)}
+                      remaining={remaining}
+                      onChange={(invoiceId, val) =>
+                        setAllocations((prev) => ({ ...prev, [invoiceId]: val }))
+                      }
+                    />
+                  ))}
                 </div>
               )}
               {remaining < -0.01 && (
