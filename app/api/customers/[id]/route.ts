@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { customerUpdateSchema } from "@/lib/validators";
+import { customerService } from "@/lib/services/customer.service";
+import { handleApiError } from "@/lib/api-response";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { error } = await requireAuth();
@@ -24,8 +26,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const parsed = customerUpdateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const customer = await prisma.customer.update({ where: { id }, data: parsed.data });
-  return NextResponse.json({ customer });
+  try {
+    const customer = await customerService.update(id, parsed.data);
+    return NextResponse.json({ customer });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

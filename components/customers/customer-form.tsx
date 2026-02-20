@@ -27,6 +27,7 @@ interface CustomerFormProps {
     creditLimit: number;
     defaultPaymentTermDays: number;
     ownedById?: string | null;
+    openingBalance?: number;
   };
   users?: User[];
   defaultOwnerId?: string;
@@ -55,6 +56,7 @@ export function CustomerForm({ initialData, users = [], defaultOwnerId }: Custom
       creditLimit: parseFloat(form.get("creditLimit") as string) || 0,
       defaultPaymentTermDays: parseInt(form.get("defaultPaymentTermDays") as string) || 30,
       ownedById: ownedByValue || null,
+      openingBalance: parseFloat(form.get("openingBalance") as string) || 0,
     };
 
     const url = isEdit ? `/api/customers/${initialData.id}` : "/api/customers";
@@ -118,6 +120,11 @@ export function CustomerForm({ initialData, users = [], defaultOwnerId }: Custom
             <div className="space-y-2">
               <Label htmlFor="defaultPaymentTermDays">Default Credit Days</Label>
               <Input id="defaultPaymentTermDays" name="defaultPaymentTermDays" type="number" min="0" step="1" defaultValue={initialData?.defaultPaymentTermDays ?? 30} placeholder="30" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="openingBalance">Opening Balance (₹)</Label>
+              <Input id="openingBalance" name="openingBalance" type="number" min="0" step="0.01" defaultValue={initialData?.openingBalance ?? 0} placeholder="0" />
+              <p className="text-xs text-muted-foreground">Pre-existing balance owed by this customer</p>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="ownedById">Assigned Owner</Label>

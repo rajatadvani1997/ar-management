@@ -11,6 +11,7 @@ export const customerCreateSchema = z.object({
   creditLimit: z.number().min(0).default(0),
   defaultPaymentTermDays: z.number().min(0).default(30),
   ownedById: z.string().optional().nullable(),
+  openingBalance: z.number().min(0).default(0),
 });
 
 export const customerUpdateSchema = customerCreateSchema.partial();
