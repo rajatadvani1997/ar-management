@@ -1,0 +1,36 @@
+# Dependencies (rebuilt in container)
+node_modules/
+npm-debug.log*
+
+# Next.js build output (rebuilt in container)
+.next/
+out/
+
+# Environment files (set via Dokploy env vars)
+.env
+.env.local
+.env.*.local
+
+# SQLite artifacts (not used)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+dev.db
+
+# Git
+.git/
+.gitignore
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# TypeScript build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
