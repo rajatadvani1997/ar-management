@@ -57,9 +57,13 @@ export function CallLogDialog({ customerId, customerName }: Props) {
       setPromiseMade(false);
       router.refresh();
     } else {
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
-      setError(data.error || "Failed to save call log");
+      try {
+        const data = await res.json();
+        const msg = data.error;
+        setError(typeof msg === "string" ? msg : "Failed to save call log");
+      } catch {
+        setError("Failed to save call log");
+      }
     }
     setLoading(false);
   }
@@ -119,7 +123,7 @@ export function CallLogDialog({ customerId, customerName }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label htmlFor="promisedAmount">Amount (₹)</Label>
-                    <Input id="promisedAmount" name="promisedAmount" type="number" min="1" step="100" />
+                    <Input id="promisedAmount" name="promisedAmount" type="number" min="1" step="1" />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="promisedDate">By Date *</Label>

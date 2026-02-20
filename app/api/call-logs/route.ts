@@ -36,39 +36,45 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const userId = (session!.user as any).id;
+
   const { promiseMade, promisedAmount, promisedDate, promiseNotes, callDate, nextCallDate, ...callData } = parsed.data;
 
-  let promise = null;
-  if (promiseMade && promisedDate) {
-    promise = await prisma.promiseDate.create({
+  try {
+    let promise = null;
+    if (promiseMade && promisedDate) {
+      promise = await prisma.promiseDate.create({
+        data: {
+          customer: { connect: { id: parsed.data.customerId } },
+          ...(promisedAmount != null && { promisedAmount }),
+          promisedDate,
+          notes: promiseNotes,
+          status: "PENDING",
+        },
+      });
+    }
+
+    const callLog = await prisma.callLog.create({
       data: {
-        customer: { connect: { id: parsed.data.customerId } },
-        ...(promisedAmount != null && { promisedAmount }),
-        promisedDate,
-        notes: promiseNotes,
-        status: "PENDING",
+        ...callData,
+        callDate: callDate || new Date(),
+        nextCallDate: nextCallDate || null,
+        calledById: userId,
+        promiseMade: promiseMade || false,
+        ...(promise && { promiseDateId: promise.id }),
+      },
+      include: {
+        calledBy: { select: { name: true } },
+        promise: true,
       },
     });
+
+    if (promise) {
+      await updateRiskFlag(parsed.data.customerId);
+    }
+
+    return NextResponse.json({ callLog }, { status: 201 });
+  } catch (err: any) {
+    console.error("POST /api/call-logs error:", err);
+    return NextResponse.json({ error: err?.message ?? "Failed to save call log" }, { status: 500 });
   }
-
-  const callLog = await prisma.callLog.create({
-    data: {
-      ...callData,
-      callDate: callDate || new Date(),
-      nextCallDate: nextCallDate || null,
-      calledById: userId,
-      promiseMade: promiseMade || false,
-      ...(promise && { promiseDateId: promise.id }),
-    },
-    include: {
-      calledBy: { select: { name: true } },
-      promise: true,
-    },
-  });
-
-  if (promise) {
-    await updateRiskFlag(parsed.data.customerId);
-  }
-
-  return NextResponse.json({ callLog }, { status: 201 });
 }

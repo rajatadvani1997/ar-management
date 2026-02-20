@@ -45,7 +45,14 @@
       "Bash(head:*)",
       "Bash(cat:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(pg_isready:*)",
+      "Bash(sc query:*)",
+      "Bash(choco:*)",
+      "Bash(scoop:*)",
+      "Bash(winget:*)",
+      "Bash(PGPASSWORD=postgres \"/c/Program Files/PostgreSQL/17/bin/psql.exe\":*)",
+      "Bash(PGPASSWORD=ar_password \"/c/Program Files/PostgreSQL/17/bin/psql.exe\":*)"
     ]
   }
 }

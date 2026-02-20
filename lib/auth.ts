@@ -54,8 +54,19 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        // Fresh login — store the DB id and role
         token.role = user.role;
         token.id = user.id;
+      } else if (token.email) {
+        // Subsequent requests — re-validate against DB so stale IDs (e.g. after migration) are corrected
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email },
+          select: { id: true, role: true, isActive: true },
+        });
+        if (dbUser && dbUser.isActive) {
+          token.id = dbUser.id;
+          token.role = dbUser.role;
+        }
       }
       return token;
     },
