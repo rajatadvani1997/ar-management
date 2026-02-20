@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireAuth, requireRole } from "@/lib/auth";
 import { userCreateSchema } from "@/lib/validators";
 import bcrypt from "bcryptjs";
 
 export async function GET() {
-  const { error } = await requireRole(["ADMIN"]);
+  // All authenticated users may fetch the user list (needed to populate owner dropdowns).
+  // Non-admin users receive the same fields; sensitive data (passwordHash) is never selected.
+  const { error } = await requireAuth();
   if (error) return error;
 
   const users = await prisma.user.findMany({
     select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: { name: "asc" },
   });
   return NextResponse.json({ users });
 }

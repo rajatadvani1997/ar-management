@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const section = searchParams.get("section") || "overdue";
+  const ownedById = searchParams.get("ownedById") || undefined;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   if (section === "overdue") {
     const customers = await prisma.customer.findMany({
-      where: { isActive: true, overdueAmt: { gt: 0 } },
+      where: { isActive: true, overdueAmt: { gt: 0 }, ...(ownedById && { ownedById }) },
       orderBy: { overdueAmt: "desc" },
       select: {
         id: true,
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: { in: ["UNPAID", "PARTIAL"] },
         dueDate: { gte: today, lt: tomorrow },
+        ...(ownedById && { customer: { ownedById } }),
       },
       include: {
         customer: {
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: "PENDING",
         promisedDate: { gte: today, lt: tomorrow },
+        ...(ownedById && { customer: { ownedById } }),
       },
       include: {
         customer: {
@@ -70,7 +73,7 @@ export async function GET(req: NextRequest) {
 
   if (section === "broken-promises") {
     const promises = await prisma.promiseDate.findMany({
-      where: { status: "BROKEN" },
+      where: { status: "BROKEN", ...(ownedById && { customer: { ownedById } }) },
       include: {
         customer: {
           select: { id: true, name: true, customerCode: true, phone: true, riskFlag: true },

@@ -10,6 +10,7 @@ export const customerCreateSchema = z.object({
   address: z.string().optional(),
   creditLimit: z.number().min(0).default(0),
   defaultPaymentTermDays: z.number().min(0).default(30),
+  ownedById: z.string().optional().nullable(),
 });
 
 export const customerUpdateSchema = customerCreateSchema.partial();

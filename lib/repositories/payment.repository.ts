@@ -11,6 +11,7 @@ import prisma from "@/lib/prisma";
 export interface PaymentFilters {
   customerId?: string;
   status?: PaymentStatus;
+  ownedById?: string;
   page?: number;
   pageSize?: number;
 }
@@ -18,12 +19,13 @@ export interface PaymentFilters {
 function createPaymentRepository(db: PrismaClient) {
   return {
     async findMany(filters: PaymentFilters = {}) {
-      const { customerId, status, page = 1, pageSize = 20 } = filters;
+      const { customerId, status, ownedById, page = 1, pageSize = 20 } = filters;
       const skip = (page - 1) * pageSize;
 
       const where = {
         ...(customerId && { customerId }),
         ...(status && { status }),
+        ...(ownedById && { customer: { ownedById } }),
       };
 
       const [total, data] = await Promise.all([

@@ -17,7 +17,8 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  callLogs CallLog[]
+  callLogs       CallLog[]
+  ownedCustomers Customer[]
 
   @@index([email])
 }
@@ -38,6 +39,8 @@ model Customer {
   overdueAmt     Float       @default(0)
   riskFlag       RiskFlag    @default(SAFE)
   isActive       Boolean     @default(true)
+  ownedById      String?
+  ownedBy        User?       @relation(fields: [ownedById], references: [id])
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -49,6 +52,7 @@ model Customer {
   @@index([riskFlag])
   @@index([outstandingAmt])
   @@index([isActive])
+  @@index([ownedById])
 }
 
 model Invoice {

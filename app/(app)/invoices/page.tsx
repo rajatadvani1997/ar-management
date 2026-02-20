@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { OwnerFilter } from "@/components/shared/owner-filter";
 import { formatCurrency, formatDate, INVOICE_STATUS_CONFIG } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import type { InvoiceStatus } from "@/app/generated/prisma/client";
@@ -10,11 +12,25 @@ import type { InvoiceStatus } from "@/app/generated/prisma/client";
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; search?: string; page?: string; owner?: string }>;
 }) {
-  const { status = "", search = "", page = "1" } = await searchParams;
+  const { status = "", search = "", page = "1", owner } = await searchParams;
   const currentPage = Math.max(1, Number(page));
   const pageSize = 20;
+
+  const session = await getSession();
+  const sessionUserId = session?.user?.id ?? "";
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  const ownedById = owner === "all" ? undefined : (owner || sessionUserId || undefined);
+
+  const users = isAdmin
+    ? await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, role: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -27,7 +43,6 @@ export default async function InvoicesPage({
         </Link>
       </div>
 
-      {/* Filters render instantly — no data dependency */}
       <form className="flex flex-wrap gap-3">
         <input name="search" defaultValue={search} placeholder="Search invoices..." className="h-9 rounded-md border border-gray-300 px-3 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select name="status" defaultValue={status} className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -38,13 +53,23 @@ export default async function InvoicesPage({
           <option value="PAID">Paid</option>
           <option value="WRITTEN_OFF">Written Off</option>
         </select>
+        {owner && <input type="hidden" name="owner" value={owner} />}
         <Button type="submit" variant="outline" size="sm">Filter</Button>
         <Link href="/invoices"><Button variant="ghost" size="sm">Clear</Button></Link>
       </form>
 
-      {/* Table streams in via Suspense — CLS prevented by fixed skeleton height */}
+      {/* Owner filter — dropdown for admin, pill toggle for others */}
+      <OwnerFilter
+        users={users}
+        currentUserId={sessionUserId}
+        isAdmin={isAdmin}
+        owner={owner}
+        basePath="/invoices"
+        extraParams={{ search, status }}
+      />
+
       <Suspense fallback={<TableSkeleton rows={pageSize} cols={7} />}>
-        <InvoicesTable status={status} search={search} page={currentPage} pageSize={pageSize} />
+        <InvoicesTable status={status} search={search} page={currentPage} pageSize={pageSize} ownedById={ownedById} ownerParam={owner} />
       </Suspense>
     </div>
   );
@@ -55,11 +80,15 @@ async function InvoicesTable({
   search,
   page,
   pageSize,
+  ownedById,
+  ownerParam,
 }: {
   status: string;
   search: string;
   page: number;
   pageSize: number;
+  ownedById: string | undefined;
+  ownerParam: string | undefined;
 }) {
   const skip = (page - 1) * pageSize;
   const where = {
@@ -70,6 +99,7 @@ async function InvoicesTable({
         { customer: { name: { contains: search } } },
       ],
     }),
+    ...(ownedById && { customer: { ownedById } }),
   };
 
   const [total, invoices] = await Promise.all([
@@ -84,7 +114,11 @@ async function InvoicesTable({
   ]);
 
   const totalPages = Math.ceil(total / pageSize);
-  const searchQs = new URLSearchParams({ ...(search && { search }), ...(status && { status }) });
+  const searchQs = new URLSearchParams({
+    ...(search && { search }),
+    ...(status && { status }),
+    ...(ownerParam && { owner: ownerParam }),
+  });
 
   return (
     <>

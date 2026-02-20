@@ -18,10 +18,12 @@ export async function GET(req: NextRequest) {
   const page = Number(searchParams.get("page") ?? 1);
   const pageSize = Math.min(Number(searchParams.get("pageSize") ?? 20), 100);
 
+  const ownedByParam = searchParams.get("ownedById");
   const result = await customerService.list({
     search: searchParams.get("search") || undefined,
     riskFlag: (searchParams.get("riskFlag") as RiskFlag) || undefined,
     isActive: isActiveParam !== null ? isActiveParam === "true" : undefined,
+    ownedById: ownedByParam !== null ? ownedByParam || null : undefined,
     page,
     pageSize,
   });

@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const result = await paymentService.list({
     customerId: searchParams.get("customerId") || undefined,
     status: (searchParams.get("status") as PaymentStatus) || undefined,
+    ownedById: searchParams.get("ownedById") || undefined,
     page,
     pageSize,
   });

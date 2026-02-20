@@ -16,6 +16,7 @@ export interface CustomerFilters {
   search?: string;
   riskFlag?: RiskFlag;
   isActive?: boolean;
+  ownedById?: string | null;
   page?: number;
   pageSize?: number;
 }
@@ -23,7 +24,7 @@ export interface CustomerFilters {
 function createCustomerRepository(db: PrismaClient) {
   return {
     async findMany(filters: CustomerFilters = {}): Promise<PaginatedResult<any>> {
-      const { search, riskFlag, isActive, page = 1, pageSize = 20 } = filters;
+      const { search, riskFlag, isActive, ownedById, page = 1, pageSize = 20 } = filters;
       const skip = (page - 1) * pageSize;
 
       const where = {
@@ -37,6 +38,7 @@ function createCustomerRepository(db: PrismaClient) {
         }),
         ...(riskFlag && { riskFlag }),
         ...(isActive !== undefined && { isActive }),
+        ...(ownedById !== undefined && { ownedById }),
       };
 
       // Single round-trip: count + data in parallel (mirrors invoice repository pattern)
@@ -44,6 +46,7 @@ function createCustomerRepository(db: PrismaClient) {
         db.customer.count({ where }),
         db.customer.findMany({
           where,
+          include: { ownedBy: { select: { id: true, name: true } } },
           orderBy: [{ overdueAmt: "desc" }, { outstandingAmt: "desc" }],
           skip,
           take: pageSize,

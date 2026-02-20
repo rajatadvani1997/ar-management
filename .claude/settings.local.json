@@ -52,7 +52,9 @@
       "Bash(scoop:*)",
       "Bash(winget:*)",
       "Bash(PGPASSWORD=postgres \"/c/Program Files/PostgreSQL/17/bin/psql.exe\":*)",
-      "Bash(PGPASSWORD=ar_password \"/c/Program Files/PostgreSQL/17/bin/psql.exe\":*)"
+      "Bash(PGPASSWORD=ar_password \"/c/Program Files/PostgreSQL/17/bin/psql.exe\":*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(PGPASSWORD=postgres \"/c/Program Files/PostgreSQL/17/bin/psql\":*)"
     ]
   }
 }

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { OwnerFilter } from "@/components/shared/owner-filter";
 import { formatCurrency, formatDate, PAYMENT_MODE_LABELS } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import type { PaymentStatus } from "@/app/generated/prisma/client";
@@ -12,16 +14,37 @@ const PAGE_SIZE = 20;
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; owner?: string }>;
 }) {
-  const { status = "", page = "1" } = await searchParams;
+  const { status = "", page = "1", owner } = await searchParams;
   const currentPage = Math.max(1, Number(page));
 
-  // Unallocated total is a fast aggregation — render in page shell alongside header
-  const totalUnallocated = await prisma.payment.aggregate({
-    _sum: { unallocatedAmount: true },
-    where: { unallocatedAmount: { gt: 0 } },
-  });
+  const session = await getSession();
+  const sessionUserId = session?.user?.id ?? "";
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  const ownedById = owner === "all" ? undefined : (owner || sessionUserId || undefined);
+
+  // Unallocated total — show only for current scope
+  const unallocatedWhere = {
+    unallocatedAmount: { gt: 0 },
+    ...(ownedById && { customer: { ownedById } }),
+  };
+
+  type UserRow = { id: string; name: string; role: string };
+  const [users, totalUnallocated] = await Promise.all([
+    isAdmin
+      ? prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, role: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([] as UserRow[]),
+    prisma.payment.aggregate({
+      _sum: { unallocatedAmount: true },
+      where: unallocatedWhere,
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -39,7 +62,6 @@ export default async function PaymentsPage({
         </Link>
       </div>
 
-      {/* Filters render instantly */}
       <form className="flex flex-wrap gap-3">
         <select name="status" defaultValue={status} className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">All Statuses</option>
@@ -47,13 +69,23 @@ export default async function PaymentsPage({
           <option value="PARTIAL">Partial</option>
           <option value="APPLIED">Applied</option>
         </select>
+        {owner && <input type="hidden" name="owner" value={owner} />}
         <Button type="submit" variant="outline" size="sm">Filter</Button>
         <Link href="/payments"><Button variant="ghost" size="sm">Clear</Button></Link>
       </form>
 
-      {/* Table streams in via Suspense — CLS prevented by fixed skeleton height */}
+      {/* Owner filter — dropdown for admin, pill toggle for others */}
+      <OwnerFilter
+        users={users}
+        currentUserId={sessionUserId}
+        isAdmin={isAdmin}
+        owner={owner}
+        basePath="/payments"
+        extraParams={{ status }}
+      />
+
       <Suspense fallback={<TableSkeleton rows={PAGE_SIZE} cols={8} />}>
-        <PaymentsTable status={status} page={currentPage} pageSize={PAGE_SIZE} />
+        <PaymentsTable status={status} page={currentPage} pageSize={PAGE_SIZE} ownedById={ownedById} ownerParam={owner} />
       </Suspense>
     </div>
   );
@@ -63,13 +95,20 @@ async function PaymentsTable({
   status,
   page,
   pageSize,
+  ownedById,
+  ownerParam,
 }: {
   status: string;
   page: number;
   pageSize: number;
+  ownedById: string | undefined;
+  ownerParam: string | undefined;
 }) {
   const skip = (page - 1) * pageSize;
-  const where = { ...(status && { status: status as PaymentStatus }) };
+  const where = {
+    ...(status && { status: status as PaymentStatus }),
+    ...(ownedById && { customer: { ownedById } }),
+  };
 
   const [total, payments] = await Promise.all([
     prisma.payment.count({ where }),
@@ -83,7 +122,10 @@ async function PaymentsTable({
   ]);
 
   const totalPages = Math.ceil(total / pageSize);
-  const searchQs = new URLSearchParams({ ...(status && { status }) });
+  const searchQs = new URLSearchParams({
+    ...(status && { status }),
+    ...(ownerParam && { owner: ownerParam }),
+  });
 
   return (
     <>

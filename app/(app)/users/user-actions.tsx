@@ -3,18 +3,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, UserX, UserCheck, Trash2 } from "lucide-react";
+import { MoreHorizontal, UserX, UserCheck, Trash2, Pencil } from "lucide-react";
+import { EditUserDialog } from "./edit-user-dialog";
 
 interface User {
   id: string;
   name: string;
-  isActive: boolean;
+  email: string;
   role: string;
+  isActive: boolean;
 }
 
 export function UserActions({ user }: { user: User }) {
   const router = useRouter();
   const [deleteError, setDeleteError] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
 
   async function toggleActive() {
     await fetch(`/api/users/${user.id}`, {
@@ -45,6 +48,10 @@ export function UserActions({ user }: { user: User }) {
           <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setEditOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={toggleActive}>
             {user.isActive ? (
               <><UserX className="mr-2 h-4 w-4" />Deactivate</>
@@ -59,6 +66,7 @@ export function UserActions({ user }: { user: User }) {
         </DropdownMenuContent>
       </DropdownMenu>
       {deleteError && <p className="text-xs text-red-600 mt-1">{deleteError}</p>}
+      <EditUserDialog user={user} open={editOpen} onClose={() => setEditOpen(false)} />
     </div>
   );
 }

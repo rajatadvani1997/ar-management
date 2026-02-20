@@ -1,47 +1,73 @@
 import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDate, RISK_FLAG_CONFIG, PROMISE_STATUS_CONFIG } from "@/lib/utils";
 import { CallLogDialog } from "@/components/call-logs/call-log-dialog";
+import { OwnerFilter } from "@/components/shared/owner-filter";
 import Link from "next/link";
 import { Phone, AlertTriangle, Clock, XCircle, PhoneCall } from "lucide-react";
 
-export default async function CallingPage() {
+export default async function CallingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ owner?: string }>;
+}) {
+  const { owner } = await searchParams;
+  const session = await getSession();
+  const sessionUserId = session?.user?.id ?? "";
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  // "owner=all" → no filter; anything else (or missing) → default to current user
+  const ownedById = owner === "all" ? undefined : (owner || sessionUserId || undefined);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  const ownerFilter = ownedById ? { ownedById } : {};
+  const customerOwnerFilter = ownedById ? { customer: { ownedById } } : {};
+
+  type UserRow = { id: string; name: string; role: string };
   const [
+    users,
     overdueCustomers,
     dueTodayInvoices,
     promisesToday,
     brokenPromises,
-    // Call Today data sources
     callTodayDueInvs,
     callTodayPromises,
     callTodayExpiredPromiseCustomers,
     callTodayNoPromiseCustomers,
   ] = await Promise.all([
+    isAdmin
+      ? prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true, role: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([] as UserRow[]),
     prisma.customer.findMany({
-      where: { isActive: true, overdueAmt: { gt: 0 } },
+      where: { isActive: true, overdueAmt: { gt: 0 }, ...ownerFilter },
       orderBy: { overdueAmt: "desc" },
     }),
     prisma.invoice.findMany({
       where: {
         status: { in: ["UNPAID", "PARTIAL"] },
         dueDate: { gte: today, lt: tomorrow },
+        ...customerOwnerFilter,
       },
       include: { customer: { select: { id: true, name: true, customerCode: true, phone: true, contactPerson: true } } },
       orderBy: { balanceAmount: "desc" },
     }),
     prisma.promiseDate.findMany({
-      where: { status: "PENDING", promisedDate: { gte: today, lt: tomorrow } },
+      where: { status: "PENDING", promisedDate: { gte: today, lt: tomorrow }, ...customerOwnerFilter },
       include: { customer: { select: { id: true, name: true, customerCode: true, phone: true, contactPerson: true } } },
       orderBy: { promisedAmount: "desc" },
     }),
     prisma.promiseDate.findMany({
-      where: { status: "BROKEN" },
+      where: { status: "BROKEN", ...customerOwnerFilter },
       include: { customer: { select: { id: true, name: true, customerCode: true, phone: true, riskFlag: true } } },
       orderBy: { resolvedAt: "desc" },
       take: 50,
@@ -49,13 +75,13 @@ export default async function CallingPage() {
     // 1. Invoices due today (UNPAID/PARTIAL)
     prisma.invoice.groupBy({
       by: ["customerId"],
-      where: { status: { in: ["UNPAID", "PARTIAL"] }, dueDate: { gte: today, lt: tomorrow } },
+      where: { status: { in: ["UNPAID", "PARTIAL"] }, dueDate: { gte: today, lt: tomorrow }, ...customerOwnerFilter },
       _sum: { balanceAmount: true },
     }),
     // 2. Pending promises due today
     prisma.promiseDate.groupBy({
       by: ["customerId"],
-      where: { status: "PENDING", promisedDate: { gte: today, lt: tomorrow } },
+      where: { status: "PENDING", promisedDate: { gte: today, lt: tomorrow }, ...customerOwnerFilter },
       _sum: { promisedAmount: true },
     }),
     // 3. Overdue + pending promise that has passed its date (not yet marked broken)
@@ -64,6 +90,7 @@ export default async function CallingPage() {
         isActive: true,
         overdueAmt: { gt: 0 },
         promises: { some: { status: "PENDING", promisedDate: { lt: today } } },
+        ...ownerFilter,
       },
       select: { id: true },
     }),
@@ -73,6 +100,7 @@ export default async function CallingPage() {
         isActive: true,
         overdueAmt: { gt: 0 },
         promises: { none: { status: "PENDING" } },
+        ...ownerFilter,
       },
       select: { id: true },
     }),
@@ -104,9 +132,21 @@ export default async function CallingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Daily Calling List</h1>
-        <p className="text-gray-500">Today: {formatDate(new Date())}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Daily Calling List</h1>
+          <p className="text-gray-500">Today: {formatDate(new Date())}</p>
+        </div>
+        {/* Owner filter — dropdown for admin, pill toggle for others */}
+        <div className="mt-1">
+          <OwnerFilter
+            users={users}
+            currentUserId={sessionUserId}
+            isAdmin={isAdmin}
+            owner={owner}
+            basePath="/calling"
+          />
+        </div>
       </div>
 
       <Tabs defaultValue="call-today">
@@ -138,7 +178,6 @@ export default async function CallingPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Each tab delegates to a single-responsibility component — SRP */}
         <TabsContent value="call-today" className="mt-4">
           <CallTodayList
             customers={callTodayCustomers}

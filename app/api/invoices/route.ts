@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     customerId: searchParams.get("customerId") || undefined,
     status: (searchParams.get("status") as InvoiceStatus) || undefined,
     search: searchParams.get("search") || undefined,
+    ownedById: searchParams.get("ownedById") || undefined,
     page,
     pageSize,
   });

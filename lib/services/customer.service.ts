@@ -17,6 +17,7 @@ export interface CreateCustomerInput {
   address?: string;
   creditLimit?: number;
   defaultPaymentTermDays?: number;
+  ownedById?: string | null;
 }
 
 const customerService = {
@@ -41,6 +42,7 @@ const customerService = {
       address: input.address,
       creditLimit: input.creditLimit ?? 0,
       defaultPaymentTermDays: input.defaultPaymentTermDays ?? 30,
+      ownedById: input.ownedById ?? null,
     });
   },
 
@@ -48,6 +50,7 @@ const customerService = {
     return customerRepository.update(id, {
       ...input,
       email: input.email === "" ? null : input.email,
+      ownedById: input.ownedById,
     });
   },
 

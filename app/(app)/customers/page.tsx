@@ -1,21 +1,38 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { customerRepository } from "@/lib/repositories/customer.repository";
+import { getSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
+import { OwnerFilter } from "@/components/shared/owner-filter";
 import { formatCurrency, RISK_FLAG_CONFIG } from "@/lib/utils";
 import { Plus, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RiskFlag } from "@/app/generated/prisma/client";
+import prisma from "@/lib/prisma";
 
 const PAGE_SIZE = 20;
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; riskFlag?: string; page?: string }>;
+  searchParams: Promise<{ search?: string; riskFlag?: string; page?: string; owner?: string }>;
 }) {
-  const { search = "", riskFlag = "", page = "1" } = await searchParams;
+  const { search = "", riskFlag = "", page = "1", owner } = await searchParams;
   const currentPage = Math.max(1, Number(page));
+  const session = await getSession();
+  const sessionUserId = session?.user?.id ?? "";
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  // "owner=all" → no filter; anything else (or missing) → default to current user
+  const ownedById = owner === "all" ? undefined : (owner || sessionUserId || undefined);
+
+  const users = isAdmin
+    ? await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, role: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -29,7 +46,7 @@ export default async function CustomersPage({
       </div>
 
       {/* Filters — render instantly (no data dependency) */}
-      <form className="flex flex-wrap gap-3">
+      <form className="flex flex-wrap gap-3 items-center">
         <input
           name="search"
           defaultValue={search}
@@ -42,17 +59,31 @@ export default async function CustomersPage({
           <option value="WATCHLIST">Watchlist</option>
           <option value="HIGH_RISK">High Risk</option>
         </select>
+        {/* Preserve current owner filter across form submits */}
+        {owner && <input type="hidden" name="owner" value={owner} />}
         <Button type="submit" variant="outline" size="sm">Filter</Button>
         <Link href="/customers"><Button variant="ghost" size="sm">Clear</Button></Link>
       </form>
 
-      {/* Table streams in — skeleton shown during DB query (CLS prevention via fixed height) */}
-      <Suspense fallback={<TableSkeleton rows={PAGE_SIZE} cols={6} />}>
+      {/* Owner filter — dropdown for admin, pill toggle for others */}
+      <OwnerFilter
+        users={users}
+        currentUserId={sessionUserId}
+        isAdmin={isAdmin}
+        owner={owner}
+        basePath="/customers"
+        extraParams={{ search, riskFlag }}
+      />
+
+      {/* Table streams in — skeleton shown during DB query */}
+      <Suspense fallback={<TableSkeleton rows={PAGE_SIZE} cols={7} />}>
         <CustomerTable
           search={search}
           riskFlag={riskFlag}
+          ownedById={ownedById}
           page={currentPage}
           pageSize={PAGE_SIZE}
+          ownerParam={owner}
         />
       </Suspense>
     </div>
@@ -62,24 +93,33 @@ export default async function CustomersPage({
 async function CustomerTable({
   search,
   riskFlag,
+  ownedById,
   page,
   pageSize,
+  ownerParam,
 }: {
   search: string;
   riskFlag: string;
+  ownedById: string | undefined;
   page: number;
   pageSize: number;
+  ownerParam: string | undefined;
 }) {
   const result = await customerRepository.findMany({
     search: search || undefined,
     riskFlag: (riskFlag as RiskFlag) || undefined,
     isActive: true,
+    ownedById,
     page,
     pageSize,
   });
 
   const { data: customers, total, totalPages } = result;
-  const searchQs = new URLSearchParams({ ...(search && { search }), ...(riskFlag && { riskFlag }) });
+  const searchQs = new URLSearchParams({
+    ...(search && { search }),
+    ...(riskFlag && { riskFlag }),
+    ...(ownerParam && { owner: ownerParam }),
+  });
 
   return (
     <>
@@ -93,13 +133,14 @@ async function CustomerTable({
               <th className="text-right px-4 py-3 font-medium text-gray-600">Outstanding</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Overdue</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Risk</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Owner</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {customers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   No customers found.{" "}
                   <Link href="/customers/new" className="text-blue-600 underline">Add one?</Link>
                 </td>
@@ -135,6 +176,9 @@ async function CustomerTable({
                         {riskConfig.label}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {(c as any).ownedBy?.name ?? <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <Link href={`/customers/${c.id}`}>
                         <Button variant="ghost" size="sm">View</Button>
@@ -148,7 +192,6 @@ async function CustomerTable({
         </table>
       </div>
 
-      {/* Pagination controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-gray-600">
           <span>Page {page} of {totalPages}</span>

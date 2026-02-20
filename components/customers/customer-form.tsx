@@ -9,6 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
+interface User {
+  id: string;
+  name: string;
+  role: string;
+}
+
 interface CustomerFormProps {
   initialData?: {
     id: string;
@@ -20,10 +26,13 @@ interface CustomerFormProps {
     address?: string | null;
     creditLimit: number;
     defaultPaymentTermDays: number;
+    ownedById?: string | null;
   };
+  users?: User[];
+  defaultOwnerId?: string;
 }
 
-export function CustomerForm({ initialData }: CustomerFormProps) {
+export function CustomerForm({ initialData, users = [], defaultOwnerId }: CustomerFormProps) {
   const router = useRouter();
   const isEdit = !!initialData;
   const [loading, setLoading] = useState(false);
@@ -35,6 +44,7 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
     setError("");
 
     const form = new FormData(e.currentTarget);
+    const ownedByValue = form.get("ownedById") as string;
     const body = {
       name: form.get("name"),
       contactPerson: form.get("contactPerson") || undefined,
@@ -44,6 +54,7 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
       address: form.get("address") || undefined,
       creditLimit: parseFloat(form.get("creditLimit") as string) || 0,
       defaultPaymentTermDays: parseInt(form.get("defaultPaymentTermDays") as string) || 30,
+      ownedById: ownedByValue || null,
     };
 
     const url = isEdit ? `/api/customers/${initialData.id}` : "/api/customers";
@@ -66,6 +77,8 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
       setLoading(false);
     }
   }
+
+  const currentOwnerId = initialData?.ownedById ?? defaultOwnerId ?? "";
 
   return (
     <Card>
@@ -105,6 +118,22 @@ export function CustomerForm({ initialData }: CustomerFormProps) {
             <div className="space-y-2">
               <Label htmlFor="defaultPaymentTermDays">Default Credit Days</Label>
               <Input id="defaultPaymentTermDays" name="defaultPaymentTermDays" type="number" min="0" step="1" defaultValue={initialData?.defaultPaymentTermDays ?? 30} placeholder="30" />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="ownedById">Assigned Owner</Label>
+              <select
+                id="ownedById"
+                name="ownedById"
+                defaultValue={currentOwnerId}
+                className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— Unassigned —</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

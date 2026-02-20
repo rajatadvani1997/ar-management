@@ -17,6 +17,7 @@ export interface InvoiceFilters {
   customerId?: string;
   status?: InvoiceStatus;
   search?: string;
+  ownedById?: string;
   page?: number;
   pageSize?: number;
 }
@@ -29,7 +30,7 @@ export type InvoiceWithRelations = Awaited<
 function createInvoiceRepository(db: PrismaClient) {
   return {
     async findMany(filters: InvoiceFilters = {}): Promise<PaginatedResult<any>> {
-      const { customerId, status, search, page = 1, pageSize = 20 } = filters;
+      const { customerId, status, search, ownedById, page = 1, pageSize = 20 } = filters;
       const skip = (page - 1) * pageSize;
 
       const where = {
@@ -41,6 +42,7 @@ function createInvoiceRepository(db: PrismaClient) {
             { referenceNumber: { contains: search } },
           ],
         }),
+        ...(ownedById && { customer: { ownedById } }),
       };
 
       // Single round-trip: count + data in parallel
